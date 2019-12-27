@@ -26,10 +26,12 @@ def from_url(url):
     t = from_url_raw(url)
     return lxml.html.fromstring(t)
 
-def process_xpath(d, h, xpath):
+def _process_xpath(h, xpath):
     els = h.xpath(xpath)
     prefix = ''
+    dicts = []
     for n, el in enumerate(els, 1):
+        d = {}
         result = el.xpath('./../..//tr')
         if len(els) != 1:
             prefix = f'{n}_'
@@ -40,7 +42,15 @@ def process_xpath(d, h, xpath):
             value = row[1].text_content().strip()
             if key and value:
                 d[key] = value
-    return len(els)
+        dicts.append(d)
+    return len(els), dicts
+
+def process_xpath(d, h, xpath):
+    n, dicts = _process_xpath(h, xpath)
+    for d_add in dicts:
+        for key, value in d_add.items():
+            d[key] = value
+    return n
 
 def get_long_description(h):
     xpath = '//div [@class="mw-parser-output"]/div [@class="wiki-infobox"][2]'
