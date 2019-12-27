@@ -26,31 +26,27 @@ def from_url(url):
     t = from_url_raw(url)
     return lxml.html.fromstring(t)
 
-def _process_xpath(h, xpath):
+def process_xpath2(h, xpath):
     els = h.xpath(xpath)
-    prefix = ''
     dicts = []
     for n, el in enumerate(els, 1):
         d = {}
         result = el.xpath('./../..//tr')
-        if len(els) != 1:
-            prefix = f'{n}_'
         for row in result:
             if len(row) != 2:
                 continue
-            key = prefix + row[0].text_content().strip()
+            key = row[0].text_content().strip()
             value = row[1].text_content().strip()
             if key and value:
                 d[key] = value
         dicts.append(d)
-    return len(els), dicts
+    return tuple(dicts)
 
 def process_xpath(d, h, xpath):
-    n, dicts = _process_xpath(h, xpath)
+    dicts = process_xpath2(h, xpath)
     for d_add in dicts:
         for key, value in d_add.items():
             d[key] = value
-    return n
 
 def get_long_description(h):
     xpath = '//div [@class="mw-parser-output"]/div [@class="wiki-infobox"][2]'
@@ -62,10 +58,12 @@ def get_long_description(h):
     return ret
 
 
-def get_sessions(sessions):
-
-    for session in sessions:
-        url = urllib.parse.urljoin('https://events.ccc.de/', session)
+def get_sessions():
+    h = from_url('https://events.ccc.de/congress/2019/wiki/index.php/Static:Timetable')
+    xpath = '//a [contains(@href, "/congress/2019/wiki/index.php/Session:")]/@href'
+    session_urls = {x.split('#')[0] for x in h.xpath(xpath)}
+    for session_url in session_urls:
+        url = urllib.parse.urljoin('https://events.ccc.de/', session_url)
         h = from_url(url)
         d = {}
         title = h.xpath('//h1 [@id="firstHeading"]/text()')[0]
@@ -77,19 +75,16 @@ def get_sessions(sessions):
             sys.stderr.write(f'Suspicious URL: {url}\n')
             continue
         process_xpath(d, h, '//th [contains(., "Description")]')
-        num_starts = process_xpath(d, h, '//th [contains(., "Starts at")]')
-        d['Number of events'] = num_starts
+        d['Events'] = process_xpath2(h, '//th [contains(., "Starts at")]')
         yield d
 
-def get_sessions_at(sessions, now):
-    for d in get_sessions(sessions):
+def get_sessions_at(now):
+    for d in get_sessions():
         is_now = False
-        num_starts = d['Number of events']
-        for i in range(1, num_starts + 1):
-            prefix = f'{i}_' if num_starts != 1 else ''
+        for event in d['Events']:
             try:
-                start = dateutil.parser.parse(d[prefix + 'Starts at'])
-                end = dateutil.parser.parse(d[prefix + 'Ends at'])
+                start = dateutil.parser.parse(event['Starts at'])
+                end = dateutil.parser.parse(event['Ends at'])
                 is_now = is_now or (start < now and end > now)
             except ValueError:
                 continue
@@ -104,19 +99,34 @@ def describe_session(n, session):
             <strong>{session["Title"]}</strong></a>{(": " + desc) if desc else ""}<br />
     ''')
 
+#def recursive_flatten_dict(father):
+#    """I wanted to be able to test whether two sets of nested dicts have an
+#    overlap. This function is here to translate them into a nested set of
+#    tuples so that I can hash it and compare the results."""
+#    if isinstance(father, list) or isinstance(father, tuple):
+#        ret = []
+#        for x in father:
+#            ret.append(recursive_flatten_dict(x))
+#        ret.sort()
+#        return tuple(ret)
+#    if not isinstance(father, dict):
+#        return father
+#    local_list = []
+#    for key, value in father.items():
+#        local_list.append((key, recursive_flatten_dict(value)))
+#    ret.sort()
+#    ret = tuple(local_list)
+#    return ret
+
 app = flask.Flask(__name__)
 @app.route('/')
 def main():
     #from_url = lambda url: lxml.html.fromstring(requests.get(url).text)
-    h = from_url('https://events.ccc.de/congress/2019/wiki/index.php/Static:Timetable')
-    sessions = {x.split('#')[0] for x in h.xpath('//a [contains(@href, "/congress/2019/wiki/index.php/Session:")]/@href')}
-
-    sessions_now = list(get_sessions_at(sessions, datetime.datetime.now()))
-    sessions_now_set = set(tuple(x.items()) for x in sessions_now)
+    sessions_now = list(get_sessions_at(datetime.datetime.now()))
 
     #print('*** Sessions hour ago ***')
     #now = datetime.datetime.now() - datetime.timedelta(hours=1)
-    #to_display = [x for x in get_sessions_at(sessions, now) if tuple(x.items()) not in sessions_now_set]
+    #to_display = [x for x in get_sessions_at(now) if x not in sessions_now]
     #for n, session in enumerate(to_display, 1):
     #    print(f'{n}. {session["Description"]}\n')
 
@@ -129,16 +139,14 @@ def main():
 
     ret += ('</span><h1>*** Sessions in an hour ***</h1><span class="columns">')
     now = datetime.datetime.now() + datetime.timedelta(hours=1)
-    to_display = [x for x in get_sessions_at(sessions, now) if tuple(x.items()) not in sessions_now_set]
+    to_display = [x for x in get_sessions_at(now) if x not in sessions_now]
     for n, session in enumerate(to_display, 1):
         ret += describe_session(n, session)
 
     return ret
 
 def generate_json():
-    h = from_url('https://events.ccc.de/congress/2019/wiki/index.php/Static:Timetable')
-    sessions = {x.split('#')[0] for x in h.xpath('//a [contains(@href, "/congress/2019/wiki/index.php/Session:")]/@href')}
-    for session in get_sessions(sessions):
+    for session in get_sessions():
         print(json.dumps(session))
 
 if __name__ == '__main__':
