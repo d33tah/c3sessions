@@ -2,14 +2,17 @@
 
 import sys
 import datetime
-import dateutil.parser
 import json
 import urllib.parse
 import hashlib
+import logging
 
 import requests
 import flask
 import lxml.html
+import dateutil.parser
+
+LOGGER = logging.getLogger('c3sessions')
 
 
 def from_url_raw(url):
@@ -18,6 +21,7 @@ def from_url_raw(url):
         with open(fname) as f:
             return f.read()
     except:
+        LOGGER.info('Downloading %r', url)
         t = requests.get(url).text
         with open(fname, 'w') as f:
             f.write(t)
@@ -145,5 +149,10 @@ def generate_json():
 
 
 if __name__ == '__main__':
+    LOGGING_FORMAT = (
+        '[%(levelname)s][%(asctime)s][%(pathname)s:%(lineno)d]: %(message)s'
+    )
+    logging.basicConfig(format=LOGGING_FORMAT, level='INFO')
+    list(get_sessions())  # prepare cache
     # generate_json()
-    app.run()
+    app.run(host='0.0.0.0')
