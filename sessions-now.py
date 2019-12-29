@@ -176,7 +176,8 @@ def main():
         ret += describe_session(n, session)
 
     ret += '''</ol></span>
-    <div class="footer">By d33tah. Source code available here.</div>
+    <div class="footer">By d33tah. Source code available
+    <a href="https://github.com/d33tah/c3sessions">here</a>.</div>
     </body></html>'''
 
     return ret
