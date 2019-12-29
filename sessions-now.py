@@ -146,7 +146,20 @@ def main():
 
     ret = '''<html>
         <head>
-            <style>body { column-count: 3; margin-bottom: 0.5em; }</style>
+            <style>
+                body {
+                    column-count: 3;
+                    margin-bottom: 0.5em;
+                }
+                .footer {
+                    position: fixed;
+                    left: 0;
+                    bottom: 0;
+                    width: 100%;
+                    text-align: center;
+                    border: 1px solid black;
+                }
+            </style>
         </head>
     <body>
     <h1>*** Sessions NOW ***</h1><ol>
@@ -161,6 +174,10 @@ def main():
     to_display = [x for x in get_sessions_at(now) if x not in sessions_now]
     for n, session in enumerate(to_display, 1):
         ret += describe_session(n, session)
+
+    ret += '''</ol></span>
+    <div class="footer">By d33tah. Source code available here.</div>
+    </body></html>'''
 
     return ret
 
