@@ -131,7 +131,7 @@ def describe_session(n, session):
     else:
         desc = ''
     if len(desc) > 200:
-        desc = desc[:desc.find(' ', 200)] + ' (...)'
+        desc = desc[:desc.find(' ', 100)] + ' (...)'
     return (f'''<li>
         <a href="{session["Wiki URL"]}">
             <strong>{session["Title"]}</strong></a>{desc}</li>
@@ -146,7 +146,7 @@ def main():
 
     ret = '''<html>
         <head>
-            <meta http-equiv="refresh" content="5" />
+            <meta http-equiv="refresh" content="120" />
             <style>
                 body {
                     column-count: 3;
@@ -159,19 +159,22 @@ def main():
                     width: 100%;
                     text-align: center;
                     border: 1px solid black;
+                    background-color: white;
+                    color: black;
                 }
             </style>
         </head>
     <body>
-    <h1>*** Sessions NOW ***</h1><ol>
+    <h1>Sessions NOW</h1><ol>
     '''
 
     for n, session in enumerate(sessions_now, 1):
         ret += describe_session(n, session)
 
-    ret += '</ol><span style="display: block; break-inside: avoid;">'
-    ret += '<h1>*** Sessions in an hour ***</h1><ol>'
-    now = datetime.datetime.now() + datetime.timedelta(hours=1)
+    ret += '</ol>'
+    #ret += '<span style="display: block; break-inside: avoid;">'
+    ret += '<h1>New sessions in 60min</h1><ol>'
+    now = datetime.datetime.now() + datetime.timedelta(minutes=60)
     to_display = [x for x in get_sessions_at(now) if x not in sessions_now]
     for n, session in enumerate(to_display, 1):
         ret += describe_session(n, session)
