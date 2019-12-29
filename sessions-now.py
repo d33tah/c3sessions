@@ -11,6 +11,7 @@ import requests
 import flask
 import lxml.html
 
+
 def from_url_raw(url):
     fname = f'cache/{hashlib.md5(url.encode()).hexdigest()}'
     try:
@@ -22,9 +23,11 @@ def from_url_raw(url):
             f.write(t)
         return t
 
+
 def from_url(url):
     t = from_url_raw(url)
     return lxml.html.fromstring(t)
+
 
 def process_xpath2(h, xpath):
     els = h.xpath(xpath)
@@ -42,11 +45,13 @@ def process_xpath2(h, xpath):
         dicts.append(d)
     return tuple(dicts)
 
+
 def process_xpath(d, h, xpath):
     dicts = process_xpath2(h, xpath)
     for d_add in dicts:
         for key, value in d_add.items():
             d[key] = value
+
 
 def get_long_description(h):
     xpath = '//div [@class="mw-parser-output"]/div [@class="wiki-infobox"][2]'
@@ -59,7 +64,8 @@ def get_long_description(h):
 
 
 def get_sessions():
-    h = from_url('https://events.ccc.de/congress/2019/wiki/index.php/Static:Timetable')
+    h = from_url(
+        'https://events.ccc.de/congress/2019/wiki/index.php/Static:Timetable')
     xpath = '//a [contains(@href, "/congress/2019/wiki/index.php/Session:")]/@href'
     session_urls = {x.split('#')[0] for x in h.xpath(xpath)}
     for session_url in session_urls:
@@ -78,6 +84,7 @@ def get_sessions():
         d['Events'] = process_xpath2(h, '//th [contains(., "Starts at")]')
         yield d
 
+
 def get_sessions_at(now):
     for d in get_sessions():
         is_now = False
@@ -91,32 +98,19 @@ def get_sessions_at(now):
         if is_now and d.get('Language') != 'de - German de - German':
             yield d
 
+
 def describe_session(n, session):
-    desc = session.get("Description") if session.get("Description") != session["Title"] else ''
-    return (f'''
-        {n}.
+    if session.get('Description'):
+        desc = ': ' + session['Description']
+    else:
+        desc = ''
+    if len(desc) > 200:
+        desc = desc[:desc.find(' ', 200)] + ' (...)'
+    return (f'''<li>
         <a href="{session["Wiki URL"]}">
-            <strong>{session["Title"]}</strong></a>{(": " + desc) if desc else ""}<br />
+            <strong>{session["Title"]}</strong></a>{desc}</li>
     ''')
 
-#def recursive_flatten_dict(father):
-#    """I wanted to be able to test whether two sets of nested dicts have an
-#    overlap. This function is here to translate them into a nested set of
-#    tuples so that I can hash it and compare the results."""
-#    if isinstance(father, list) or isinstance(father, tuple):
-#        ret = []
-#        for x in father:
-#            ret.append(recursive_flatten_dict(x))
-#        ret.sort()
-#        return tuple(ret)
-#    if not isinstance(father, dict):
-#        return father
-#    local_list = []
-#    for key, value in father.items():
-#        local_list.append((key, recursive_flatten_dict(value)))
-#    ret.sort()
-#    ret = tuple(local_list)
-#    return ret
 
 app = flask.Flask(__name__)
 @app.route('/')
@@ -124,20 +118,19 @@ def main():
     #from_url = lambda url: lxml.html.fromstring(requests.get(url).text)
     sessions_now = list(get_sessions_at(datetime.datetime.now()))
 
-    #print('*** Sessions hour ago ***')
-    #now = datetime.datetime.now() - datetime.timedelta(hours=1)
-    #to_display = [x for x in get_sessions_at(now) if x not in sessions_now]
-    #for n, session in enumerate(to_display, 1):
-    #    print(f'{n}. {session["Description"]}\n')
+    ret = '''<html>
+        <head>
+            <style>body { column-count: 3; margin-bottom: 0.5em; }</style>
+        </head>
+    <body>
+    <h1>*** Sessions NOW ***</h1><ol>
+    '''
 
-    ret = '<html><head><meta http-equiv="refresh" content="5; url=/"></head><body>'
-    ret += ('<style>.columns { column-count: 3; } * { margin-bottom: 0.5em; }</style>')
-
-    ret += ('<h1>*** Sessions NOW ***</h1><span class="columns">')
     for n, session in enumerate(sessions_now, 1):
         ret += describe_session(n, session)
 
-    ret += ('</span><h1>*** Sessions in an hour ***</h1><span class="columns">')
+    ret += '</ol><span style="display: block; break-inside: avoid;">'
+    ret += '<h1>*** Sessions in an hour ***</h1><ol>'
     now = datetime.datetime.now() + datetime.timedelta(hours=1)
     to_display = [x for x in get_sessions_at(now) if x not in sessions_now]
     for n, session in enumerate(to_display, 1):
@@ -145,10 +138,12 @@ def main():
 
     return ret
 
+
 def generate_json():
     for session in get_sessions():
         print(json.dumps(session))
 
+
 if __name__ == '__main__':
-    #generate_json()
+    # generate_json()
     app.run()
